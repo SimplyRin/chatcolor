@@ -1,0 +1,101 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-macos:
+    runs-on: macos-latest  # macOS arm64 (M1/M2)
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+    - name: Add Rust to PATH
+      run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Build
+      run: cargo build --release
+
+    - name: Create ZIP archive
+      run: |
+        cd target/release
+        zip ../../chatcolor-macos-arm64.zip chatcolor
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: chatcolor-macos-arm64
+        path: chatcolor-macos-arm64.zip
+
+  build-ubuntu:
+    runs-on: ubuntu-latest  # Ubuntu x64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+    - name: Add Rust to PATH
+      run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Build
+      run: cargo build --release
+
+    - name: Create TAR.GZ archive
+      run: |
+        cd target/release
+        tar -czf ../../chatcolor-ubuntu-x64.tar.gz chatcolor
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: chatcolor-ubuntu-x64
+        path: chatcolor-ubuntu-x64.tar.gz
+
+  release:
+    needs: [build-macos, build-ubuntu]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download macOS artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: chatcolor-macos-arm64
+        path: artifacts/
+
+    - name: Download Ubuntu artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: chatcolor-ubuntu-x64
+        path: artifacts/
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          artifacts/chatcolor-macos-arm64.zip
+          artifacts/chatcolor-ubuntu-x64.tar.gz
+        tag_name: ${{ github.ref_name }}
+        name: Release ${{ github.ref_name }}
+        body: |
+          Automated release for ${{ github.ref_name }}
+
+          Binaries:
+          - chatcolor-macos-arm64.zip (macOS arm64)
+          - chatcolor-ubuntu-x64.tar.gz (Ubuntu x64)
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
