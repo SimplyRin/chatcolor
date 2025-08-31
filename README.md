@@ -12,6 +12,14 @@
 
 ## インストール
 
+### Snap Store (推奨)
+
+Snap Store からインストールできます。
+
+```sh
+sudo snap install chatcolor
+```
+
 ### Rust がインストールされている場合
 
 ```sh
