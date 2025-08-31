@@ -62,8 +62,47 @@ jobs:
         name: chatcolor-ubuntu-x64
         path: chatcolor-ubuntu-x64.tar.gz
 
+  build-ubuntu-arm64:
+    runs-on: ubuntu-latest  # Ubuntu x64 (クロスコンパイルでarm64バイナリ作成)
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+    - name: Add Rust to PATH
+      run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Add ARM64 target
+      run: rustup target add aarch64-unknown-linux-gnu
+
+    - name: Install ARM64 GCC
+      run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
+    - name: Set linker for ARM64
+      run: |
+        mkdir -p ~/.cargo
+        echo '[target.aarch64-unknown-linux-gnu]' > ~/.cargo/config.toml
+        echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
+
+    - name: Build for ARM64
+      run: cargo build --target aarch64-unknown-linux-gnu --release
+
+    - name: Create TAR.GZ archive
+      run: |
+        cd target/aarch64-unknown-linux-gnu/release
+        tar -czf ../../../chatcolor-ubuntu-arm64.tar.gz chatcolor
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: chatcolor-ubuntu-arm64
+        path: chatcolor-ubuntu-arm64.tar.gz
+
   release:
-    needs: [build-macos, build-ubuntu]
+    needs: [build-macos, build-ubuntu, build-ubuntu-arm64]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
 
@@ -77,10 +116,16 @@ jobs:
         name: chatcolor-macos-arm64
         path: artifacts/
 
-    - name: Download Ubuntu artifact
+    - name: Download Ubuntu x64 artifact
       uses: actions/download-artifact@v4
       with:
         name: chatcolor-ubuntu-x64
+        path: artifacts/
+
+    - name: Download Ubuntu arm64 artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: chatcolor-ubuntu-arm64
         path: artifacts/
 
     - name: Create Release
@@ -89,6 +134,7 @@ jobs:
         files: |
           artifacts/chatcolor-macos-arm64.zip
           artifacts/chatcolor-ubuntu-x64.tar.gz
+          artifacts/chatcolor-ubuntu-arm64.tar.gz
         tag_name: ${{ github.ref_name }}
         name: Release ${{ github.ref_name }}
         body: |
@@ -97,5 +143,6 @@ jobs:
           Binaries:
           - chatcolor-macos-arm64.zip (macOS arm64)
           - chatcolor-ubuntu-x64.tar.gz (Ubuntu x64)
+          - chatcolor-ubuntu-arm64.tar.gz (Ubuntu arm64)
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
